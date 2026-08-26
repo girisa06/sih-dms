@@ -10,10 +10,12 @@ from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
 from app.models.case import Case
 from app.models.case_access import CaseAccess
+from app.models.document import Document
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.case import CaseCreate, CaseResponse
 from app.schemas.case_access import CaseAccessGrant, CaseAccessResponse
+from app.schemas.document import CaseDocumentResponse
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -122,3 +124,35 @@ def grant_case_access(
     db.commit()
     db.refresh(access)
     return access
+
+
+@router.get("/{case_id}/documents", response_model=list[CaseDocumentResponse])
+def list_case_documents(
+    case_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[Document]:
+    case = db.get(Case, case_id)
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+
+    if case.created_by != current_user.id:
+        now = datetime.now(timezone.utc)
+        has_access = (
+            db.query(CaseAccess)
+            .filter(
+                CaseAccess.case_id == case_id,
+                CaseAccess.user_id == current_user.id,
+                CaseAccess.expires_at > now,
+            )
+            .first()
+        )
+        if has_access is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    return (
+        db.query(Document)
+        .filter(Document.case_id == case_id)
+        .order_by(Document.created_at.asc())
+        .all()
+    )
