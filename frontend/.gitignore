@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Logs
 logs
 *.log
@@ -22,6 +23,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+=======
 __pycache__/
 *.pyc
 .venv/
@@ -29,8 +31,6 @@ venv/
 .env
 node_modules/
 dist/
-dist-ssr/
-*.local
 build/
 .DS_Store
-.vscode/
+>>>>>>> upstream/main
