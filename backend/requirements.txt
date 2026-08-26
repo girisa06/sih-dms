@@ -8,3 +8,8 @@ pydantic-settings==2.5.2
 cryptography==43.0.3
 reportlab==4.2.5
 pypdf==5.1.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]==3.3.0
+python-multipart==0.0.12
+httpx==0.28.1
