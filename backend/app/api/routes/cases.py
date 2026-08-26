@@ -12,6 +12,7 @@ from app.models.case_access import CaseAccess
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.case import CaseCreate, CaseResponse
+from app.schemas.case_access import CaseAccessGrant, CaseAccessResponse
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -85,3 +86,31 @@ def get_case(
         raise not_found
 
     return case
+
+
+@router.post("/{case_id}/access", response_model=CaseAccessResponse, status_code=status.HTTP_201_CREATED)
+def grant_case_access(
+    case_id: uuid.UUID,
+    payload: CaseAccessGrant,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CaseAccess:
+    case = db.get(Case, case_id)
+    if case is None or case.created_by != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+
+    target_user = db.get(User, payload.user_id)
+    if target_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    access = db.get(CaseAccess, (case_id, payload.user_id))
+    if access is None:
+        access = CaseAccess(case_id=case_id, user_id=payload.user_id)
+        db.add(access)
+
+    access.granted_by = current_user.id
+    access.expires_at = payload.expires_at
+
+    db.commit()
+    db.refresh(access)
+    return access
