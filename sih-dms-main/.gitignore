@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Production builds
+dist/
+build/
+frontend/dist/
+
+# Environment variables & local logs
+.env
+*.log
+
+# Editor & OS files
+.DS_Store
+.vscode/
+frontend/dist/
+
+# Environment variables & local logs
+.env
+*.log
+
+# Editor & OS files
+.DS_Store
+.vscode/
