@@ -10,6 +10,8 @@ import {
   Download
 } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api-proxy';
+
 export default function DocumentIntegrityVerificationBar({ documentId = "doc-101", onVerificationComplete }) {
   // Verification states: 'IDLE' | 'VERIFYING' | 'PASS' | 'FAIL'
   const [verifyState, setVerifyState] = useState('IDLE');
@@ -23,9 +25,9 @@ export default function DocumentIntegrityVerificationBar({ documentId = "doc-101
     setVerifyDetails(null);
 
     try {
-      const token = localStorage.getItem('jwt_token');
+      const token = localStorage.getItem('token');
       // Calls Person 2's POST /documents/{id}/verify endpoint
-      const response = await fetch(`/documents/${documentId}/verify`, {
+      const response = await fetch(`${API_BASE_URL}/documents/${documentId}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -38,9 +40,7 @@ export default function DocumentIntegrityVerificationBar({ documentId = "doc-101
       }
 
       const data = await response.json(); 
-      // Expected Data Contract: { verified: boolean, message: string, checked_at: string, total_events: number }
-      
-      if (data.verified) {
+      if (data.valid) {
         setVerifyState('PASS');
       } else {
         setVerifyState('FAIL');
@@ -48,31 +48,12 @@ export default function DocumentIntegrityVerificationBar({ documentId = "doc-101
       setVerifyDetails(data);
 
       if (onVerificationComplete) {
-        onVerificationComplete(data.verified, data);
+        onVerificationComplete(data.valid, data);
       }
     } catch (err) {
-      console.warn("Backend verification unavailable. Simulating Fallback Verification state.", err);
-      // Fallback/Simulated check for offline UI testing
-      setTimeout(() => {
-        const mockPass = true; // Toggle to false to test FAIL state UI locally
-        if (mockPass) {
-          setVerifyState('PASS');
-          setVerifyDetails({
-            verified: true,
-            message: "Cryptographic hash chain validated successfully. Zero tampered events detected.",
-            checked_at: new Date().toISOString(),
-            total_events: 4
-          });
-        } else {
-          setVerifyState('FAIL');
-          setVerifyDetails({
-            verified: false,
-            message: "HASH MISMATCH DETECTED at event index #2. Chain broken!",
-            checked_at: new Date().toISOString(),
-            total_events: 4
-          });
-        }
-      }, 1000);
+      console.warn("Backend verification unavailable.", err);
+      setVerifyState('FAIL');
+      setVerifyDetails({ message: "Unable to verify the document integrity." });
     }
   };
 
@@ -82,9 +63,9 @@ export default function DocumentIntegrityVerificationBar({ documentId = "doc-101
     setCertError(null);
 
     try {
-      const token = localStorage.getItem('jwt_token');
+      const token = localStorage.getItem('token');
       // Calls Person 2's POST /documents/{id}/certificate endpoint[cite: 1, 2]
-      const response = await fetch(`/documents/${documentId}/certificate`, {
+      const response = await fetch(`${API_BASE_URL}/documents/${documentId}/certificate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

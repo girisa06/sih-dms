@@ -18,6 +18,8 @@ import {
   ShieldAlert
 } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api-proxy';
+
 // --- FALLBACK MOCK DATA (Aligned with Person 2's Audit Log schema) ---
 const MOCK_AUDIT_LOG = [
   {
@@ -61,27 +63,24 @@ const MOCK_AUDIT_LOG = [
 export default function ChainOfCustodyLedger({ documentId = "doc-101" }) {
   const [auditLog, setAuditLog] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isMock, setIsMock] = useState(false);
   const [expandedNodes, setExpandedNodes] = useState({});
 
   useEffect(() => {
     async function fetchAuditLog() {
       setLoading(true);
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = localStorage.getItem('token');
         // Consuming Person 2's GET /documents/{id}/audit-log endpoint[cite: 1, 2]
-        const response = await fetch(`/documents/${documentId}/audit-log`, {
+        const response = await fetch(`${API_BASE_URL}/documents/${documentId}/audit-log`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
 
         if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
         const data = await response.json();
         setAuditLog(data);
-        setIsMock(false);
       } catch (err) {
-        console.warn("Backend endpoint unreachable. Falling back to Mock Audit Log.", err);
-        setAuditLog(MOCK_AUDIT_LOG);
-        setIsMock(true);
+        console.warn("Unable to load the audit ledger.", err);
+        setAuditLog([]);
       } finally {
         setLoading(false);
       }
@@ -128,13 +127,6 @@ export default function ChainOfCustodyLedger({ documentId = "doc-101" }) {
       </div>
 
       {/* Mock Mode Notice Banner */}
-      {isMock && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-center gap-2 mb-6">
-          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>Using local fallback mock ledger state for offline UI preview.</span>
-        </div>
-      )}
-
       {/* --- VISUAL CHAIN LIST --- */}
       <div className="relative pl-6 sm:pl-8 space-y-8">
         

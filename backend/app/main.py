@@ -12,7 +12,10 @@ from app.api.security import router as security_router
 
 logger = logging.getLogger(__name__)
 
+from app.api.security import router as security_router
+
 app = FastAPI(title="Secure DMS API")
+app.include_router(security_router)
 
 app.add_middleware(
     CORSMiddleware,

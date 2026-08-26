@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import DashboardShell from '../components/DashboardShell';
 import axios from 'axios';
+import ChainOfCustodyLedger from '../../ChainOfCustodyLedger';
+import DocumentIntegrityVerificationBar from '../../DocumentIntegrityVerificationBar';
 
 const MOCK_TIMELINE_DATA = {
   case_number: 'CASE-2026-001',
@@ -74,6 +76,7 @@ export default function CaseTimeline() {
   const [timeline, setTimeline] = useState(MOCK_TIMELINE_DATA);
   const [isTamperSimulated, setIsTamperSimulated] = useState(false);
   const [copiedHash, setCopiedHash] = useState(null);
+  const [documents, setDocuments] = useState([]);
 
   useEffect(() => {
     const fetchTimeline = async () => {
@@ -82,6 +85,7 @@ export default function CaseTimeline() {
         const docsRes = await axios.get(`/cases/${caseId}/documents`);
         
         if (Array.isArray(docsRes.data) && docsRes.data.length > 0) {
+          setDocuments(docsRes.data);
           const mappedEvents = docsRes.data.map((doc, index, array) => ({
             id: doc.id || `EVT-${index + 101}`,
             timestamp: doc.created_at ? new Date(doc.created_at).toLocaleString() : 'Recent',
@@ -107,6 +111,8 @@ export default function CaseTimeline() {
           return;
         }
 
+        setDocuments([]);
+
         const res = await axios.get(`/cases/${caseId}/timeline`);
         if (res.data && Array.isArray(res.data.events)) {
           setTimeline(res.data);
@@ -131,6 +137,12 @@ export default function CaseTimeline() {
   return (
     <DashboardShell roleTitle="Digital Evidence Chain-of-Custody">
       <div className="relative space-y-8">
+        {documents[0]?.id && (
+          <>
+            <DocumentIntegrityVerificationBar documentId={documents[0].id} />
+            <ChainOfCustodyLedger documentId={documents[0].id} />
+          </>
+        )}
         <div className="pointer-events-none absolute -top-20 left-1/2 -z-10 h-96 w-96 -translate-x-1/2 rounded-full bg-cyan-500/10 blur-[120px] transition-all duration-700 animate-pulse" />
 
         {/* Top Summary Card */}

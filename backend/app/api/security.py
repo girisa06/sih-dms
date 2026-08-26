@@ -20,7 +20,6 @@ router = APIRouter(prefix="/documents", tags=["security"])
 
 
 def current_actor(request: Request) -> UUID:
-    print(f"DEBUG current_actor: request.state.__dict__ = {request.state.__dict__}")
     actor_id = getattr(request.state, "user_id", None)
     if not actor_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")

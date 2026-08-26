@@ -10,6 +10,13 @@ __pycache__/
 # Production builds
 dist/
 build/
+frontend/dist/
+
+# Environment variables & local logs
+.env
+*.log
+
+# Editor & OS files
 .DS_Store
 .vscode/
 frontend/dist/
