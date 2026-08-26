@@ -9,70 +9,48 @@ import {
   RefreshCw,
   Download
 } from 'lucide-react';
+import { apiFetch } from './src/api/client';
 
-export default function DocumentIntegrityVerificationBar({ documentId = "doc-101", onVerificationComplete }) {
+export default function DocumentIntegrityVerificationBar({ documentId, onVerificationComplete }) {
   // Verification states: 'IDLE' | 'VERIFYING' | 'PASS' | 'FAIL'
   const [verifyState, setVerifyState] = useState('IDLE');
-  const [verifyDetails, setVerifyDetails] = useState(null);
+  const [verifyError, setVerifyError] = useState(null);
   const [generatingCert, setGeneratingCert] = useState(false);
   const [certError, setCertError] = useState(null);
+  const [downloadError, setDownloadError] = useState(null);
 
   // --- 1. VERIFY INTEGRITY ACTION ---
   const handleVerifyIntegrity = async () => {
     setVerifyState('VERIFYING');
-    setVerifyDetails(null);
+    setVerifyError(null);
+
+    if (!documentId) {
+      setVerifyState('IDLE');
+      setVerifyError('A document ID is required to verify integrity.');
+      return;
+    }
 
     try {
-      const token = localStorage.getItem('jwt_token');
-      // Calls Person 2's POST /documents/{id}/verify endpoint
-      const response = await fetch(`/documents/${documentId}/verify`, {
+      const response = await apiFetch(`/documents/${documentId}/verify`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
 
-      if (!response.ok) {
-        throw new Error(`Verification endpoint failed with status ${response.status}`);
-      }
-
-      const data = await response.json(); 
-      // Expected Data Contract: { verified: boolean, message: string, checked_at: string, total_events: number }
+      const data = await response.json();
       
-      if (data.verified) {
+      if (data.valid === true) {
         setVerifyState('PASS');
-      } else {
+      } else if (data.valid === false) {
         setVerifyState('FAIL');
+      } else {
+        throw new Error('Verification response did not include a boolean valid field.');
       }
-      setVerifyDetails(data);
-
       if (onVerificationComplete) {
-        onVerificationComplete(data.verified, data);
+        onVerificationComplete(data.valid, data);
       }
     } catch (err) {
-      console.warn("Backend verification unavailable. Simulating Fallback Verification state.", err);
-      // Fallback/Simulated check for offline UI testing
-      setTimeout(() => {
-        const mockPass = true; // Toggle to false to test FAIL state UI locally
-        if (mockPass) {
-          setVerifyState('PASS');
-          setVerifyDetails({
-            verified: true,
-            message: "Cryptographic hash chain validated successfully. Zero tampered events detected.",
-            checked_at: new Date().toISOString(),
-            total_events: 4
-          });
-        } else {
-          setVerifyState('FAIL');
-          setVerifyDetails({
-            verified: false,
-            message: "HASH MISMATCH DETECTED at event index #2. Chain broken!",
-            checked_at: new Date().toISOString(),
-            total_events: 4
-          });
-        }
-      }, 1000);
+      setVerifyState('IDLE');
+      setVerifyError(err.message || 'Unable to verify document integrity.');
     }
   };
 
@@ -81,20 +59,17 @@ export default function DocumentIntegrityVerificationBar({ documentId = "doc-101
     setGeneratingCert(true);
     setCertError(null);
 
-    try {
-      const token = localStorage.getItem('jwt_token');
-      // Calls Person 2's POST /documents/{id}/certificate endpoint[cite: 1, 2]
-      const response = await fetch(`/documents/${documentId}/certificate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
-      });
+    if (!documentId) {
+      setCertError('A document ID is required to generate a certificate.');
+      setGeneratingCert(false);
+      return;
+    }
 
-      if (!response.ok) {
-        throw new Error(`Failed to generate certificate (Status: ${response.status})`);
-      }
+    try {
+      const response = await apiFetch(`/documents/${documentId}/certificate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
 
       const certBlob = await response.blob();
       const url = URL.createObjectURL(certBlob);
@@ -107,10 +82,31 @@ export default function DocumentIntegrityVerificationBar({ documentId = "doc-101
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.warn("Certificate endpoint failed. Falling back to local trigger notice.", err);
-      setCertError("Unable to reach certificate generation service.");
+      setCertError(err.message || 'Unable to generate certificate.');
     } finally {
       setGeneratingCert(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    setDownloadError(null);
+    if (!documentId) {
+      setDownloadError('A document ID is required to download this document.');
+      return;
+    }
+    try {
+      const response = await apiFetch(`/documents/${documentId}/download`);
+      const fileBlob = await response.blob();
+      const url = URL.createObjectURL(fileBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `document-${documentId}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(err.message || 'Unable to download document.');
     }
   };
 
@@ -168,8 +164,9 @@ export default function DocumentIntegrityVerificationBar({ documentId = "doc-101
             <p className="text-xs text-slate-500 mt-0.5">
               {verifyState === 'IDLE' && "Execute SHA-256 hash-chain verification to validate evidence admissibility."}
               {verifyState === 'VERIFYING' && "Recomputing hash ledger against master key..."}
-              {verifyState === 'PASS' && (verifyDetails?.message || "Cryptographic audit trail intact and verified.")}
-              {verifyState === 'FAIL' && (verifyDetails?.message || "Hash mismatch detected! Chain integrity broken.")}
+              {verifyState === 'PASS' && "The backend reported this document as valid."}
+              {verifyState === 'FAIL' && "The backend reported this document as invalid."}
+              {verifyState === 'IDLE' && verifyError}
             </p>
           </div>
         </div>
@@ -193,7 +190,7 @@ export default function DocumentIntegrityVerificationBar({ documentId = "doc-101
               </>
             ) : verifyState === 'IDLE' ? (
               <>
-                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Verify Integrity[cite: 2]
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Verify Integrity
               </>
             ) : (
               <>
@@ -216,9 +213,17 @@ export default function DocumentIntegrityVerificationBar({ documentId = "doc-101
             ) : (
               <>
                 <FileBadge className="w-4 h-4 text-blue-600" />
-                <span>Generate BSA Sec 63 Certificate[cite: 1, 2]</span>
+                <span>Generate BSA Sec 63 Certificate</span>
               </>
             )}
+          </button>
+
+          <button
+            onClick={handleDownload}
+            disabled={!documentId}
+            className="px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" /> Download Document
           </button>
 
         </div>
@@ -238,6 +243,11 @@ export default function DocumentIntegrityVerificationBar({ documentId = "doc-101
       {certError && (
         <div className="mt-2 text-right text-[11px] text-rose-500 font-medium">
           {certError}
+        </div>
+      )}
+      {downloadError && (
+        <div className="mt-2 text-right text-[11px] text-rose-500 font-medium">
+          {downloadError}
         </div>
       )}
 

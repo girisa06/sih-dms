@@ -1,15 +1,13 @@
-// frontend/src/api/client.js
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://sih-dms.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://sih-dms.onrender.com';
 
 export async function apiRequest(endpoint, options = {}) {
-  const token = localStorage.getItem('token'); // Adjust key if stored differently in AuthContext
+  const token = localStorage.getItem('token');
 
   const defaultHeaders = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {})
   };
 
-  // Do not set Content-Type header when uploading FormData / files (let browser set boundary)
   if (options.body instanceof FormData) {
     delete defaultHeaders['Content-Type'];
   }
@@ -29,3 +27,26 @@ export async function apiRequest(endpoint, options = {}) {
 
   return response.json();
 }
+
+export function getAuthHeaders(additionalHeaders = {}) {
+  const token = localStorage.getItem('token');
+  return {
+    ...additionalHeaders,
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+}
+
+export async function apiFetch(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: getAuthHeaders(options.headers)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  return response;
+}
+
+export { API_BASE_URL };

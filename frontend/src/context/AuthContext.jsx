@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
+import { API_BASE_URL } from '../api/client';
+
+axios.defaults.baseURL = API_BASE_URL;
 
 const AuthContext = createContext(null);
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api-proxy';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {

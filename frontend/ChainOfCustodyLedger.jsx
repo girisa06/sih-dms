@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
-  Link as LinkIcon,
   Copy,
   Check,
   ChevronDown,
@@ -13,75 +12,30 @@ import {
   Share2,
   Edit3,
   Lock,
-  AlertCircle,
   Loader2,
   ShieldAlert
 } from 'lucide-react';
 
-// --- FALLBACK MOCK DATA (Aligned with Person 2's Audit Log schema) ---
-const MOCK_AUDIT_LOG = [
-  {
-    id: "log-001",
-    document_id: "doc-101",
-    actor_id: "Insp. Rajesh Kumar (ID: OFF-4022)",
-    action: "UPLOAD",
-    prev_hash: "0000000000000000000000000000000000000000000000000000000000000000",
-    event_hash: "a3f89e1b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f",
-    timestamp: "2026-08-20T10:30:00Z"
-  },
-  {
-    id: "log-002",
-    document_id: "doc-101",
-    actor_id: "Dr. A. Sharma (ID: EXP-902)",
-    action: "EDIT",
-    prev_hash: "a3f89e1b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f",
-    event_hash: "b4e90f2c3d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a",
-    timestamp: "2026-08-21T14:15:00Z"
-  },
-  {
-    id: "log-003",
-    document_id: "doc-101",
-    actor_id: "Insp. Rajesh Kumar (ID: OFF-4022)",
-    action: "SHARE",
-    prev_hash: "b4e90f2c3d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a",
-    event_hash: "c5f01a3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b",
-    timestamp: "2026-08-23T09:45:00Z"
-  },
-  {
-    id: "log-004",
-    document_id: "doc-101",
-    actor_id: "Adv. Meera Nair (ID: PROS-104)",
-    action: "VIEW",
-    prev_hash: "c5f01a3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b",
-    event_hash: "d6a12b4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c",
-    timestamp: "2026-08-25T16:00:00Z"
-  }
-];
+import { apiFetch } from './src/api/client';
 
-export default function ChainOfCustodyLedger({ documentId = "doc-101" }) {
+export default function ChainOfCustodyLedger({ documentId }) {
   const [auditLog, setAuditLog] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isMock, setIsMock] = useState(false);
+  const [error, setError] = useState(null);
   const [expandedNodes, setExpandedNodes] = useState({});
 
   useEffect(() => {
     async function fetchAuditLog() {
       setLoading(true);
+      setError(null);
       try {
-        const token = localStorage.getItem('jwt_token');
-        // Consuming Person 2's GET /documents/{id}/audit-log endpoint[cite: 1, 2]
-        const response = await fetch(`/documents/${documentId}/audit-log`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-
-        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+        const response = await apiFetch(`/documents/${documentId}/audit-log`);
         const data = await response.json();
+        if (!Array.isArray(data)) throw new Error('Audit log response was not an array.');
         setAuditLog(data);
-        setIsMock(false);
       } catch (err) {
-        console.warn("Backend endpoint unreachable. Falling back to Mock Audit Log.", err);
-        setAuditLog(MOCK_AUDIT_LOG);
-        setIsMock(true);
+        setError(err.message || 'Unable to load the audit log.');
+        setAuditLog([]);
       } finally {
         setLoading(false);
       }
@@ -93,6 +47,15 @@ export default function ChainOfCustodyLedger({ documentId = "doc-101" }) {
   const toggleExpand = (id) => {
     setExpandedNodes(prev => ({ ...prev, [id]: !prev[id] }));
   };
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-xl border border-rose-200 p-6 text-sm text-rose-700">
+        <div className="flex items-center gap-2 font-semibold"><ShieldAlert className="w-5 h-5" /> Unable to load audit ledger</div>
+        <p className="mt-2 text-rose-600">{error}</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -112,7 +75,7 @@ export default function ChainOfCustodyLedger({ documentId = "doc-101" }) {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-slate-900">Chain-of-Custody Audit Ledger</h2>
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-600" /> Tamper-Evident[cite: 1, 2]
+              <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-600" /> Tamper-Evident
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
@@ -127,14 +90,6 @@ export default function ChainOfCustodyLedger({ documentId = "doc-101" }) {
         </div>
       </div>
 
-      {/* Mock Mode Notice Banner */}
-      {isMock && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-center gap-2 mb-6">
-          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>Using local fallback mock ledger state for offline UI preview.</span>
-        </div>
-      )}
-
       {/* --- VISUAL CHAIN LIST --- */}
       <div className="relative pl-6 sm:pl-8 space-y-8">
         
@@ -142,11 +97,11 @@ export default function ChainOfCustodyLedger({ documentId = "doc-101" }) {
         <div className="absolute left-[15px] sm:left-[19px] top-3 bottom-6 w-0.5 bg-slate-200" />
 
         {auditLog.map((event, index) => {
-          const isExpanded = !!expandedNodes[event.id];
-          const isGenesis = index === 0;
+          const eventKey = event.event_hash || index;
+          const isExpanded = !!expandedNodes[eventKey];
 
           return (
-            <div key={event.id} className="relative group">
+            <div key={eventKey} className="relative group">
               
               {/* Step Sequence Badge (Timeline Node Marker) */}
               <div className="absolute -left-[31px] sm:-left-[39px] top-1 z-10 w-8 h-8 rounded-full bg-slate-900 text-white border-2 border-white shadow-sm flex items-center justify-center font-mono text-xs font-bold">
@@ -160,9 +115,6 @@ export default function ChainOfCustodyLedger({ documentId = "doc-101" }) {
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <div className="flex items-center space-x-2">
                     <ActionBadge action={event.action} />
-                    <span className="text-xs text-slate-500 font-mono">
-                      Event ID: <strong className="text-slate-700">{event.id}</strong>
-                    </span>
                   </div>
                   <div className="flex items-center text-xs text-slate-500 font-mono bg-white px-2.5 py-1 rounded border border-slate-200">
                     <Clock className="w-3.5 h-3.5 text-slate-400 mr-1.5" />
@@ -173,25 +125,12 @@ export default function ChainOfCustodyLedger({ documentId = "doc-101" }) {
                 {/* Actor Info */}
                 <div className="flex items-center text-xs text-slate-700 mb-4">
                   <User className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
-                  <span>Logged Actor: <strong className="text-slate-900 font-medium">{event.actor_id}</strong></span>
+                  <span>Logged Actor: <strong className="text-slate-900 font-medium">{event.actor}</strong></span>
                 </div>
 
                 {/* --- CRYPTOGRAPHIC CONTINUITY BOX --- */}
                 <div className="bg-slate-900 text-slate-100 rounded-lg p-3 text-xs font-mono space-y-2 border border-slate-800">
                   
-                  {/* Previous Hash Entry */}
-                  <div className="flex items-center justify-between gap-2 text-slate-400">
-                    <span className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase flex items-center gap-1">
-                      <LinkIcon className="w-3 h-3 text-slate-500" /> Prev Hash:
-                    </span>
-                    <HashPill hash={event.prev_hash} isGenesis={isGenesis} />
-                  </div>
-
-                  {/* Hash Link Indicator */}
-                  <div className="flex items-center justify-center my-0.5 text-slate-600">
-                    <div className="h-3 w-0.5 bg-slate-700 my-0.5" />
-                  </div>
-
                   {/* Event Hash Entry */}
                   <div className="flex items-center justify-between gap-2 text-emerald-400">
                     <span className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase flex items-center gap-1">
@@ -204,31 +143,22 @@ export default function ChainOfCustodyLedger({ documentId = "doc-101" }) {
                 {/* EXPANDABLE FULL HASH VIEW TOGGLE */}
                 <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
                   <button
-                    onClick={() => toggleExpand(event.id)}
+                    onClick={() => toggleExpand(eventKey)}
                     className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-medium transition"
                   >
                     {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     <span>{isExpanded ? "Hide Full Cryptographic Offsets" : "View Full Hashes & Offsets"}</span>
                   </button>
 
-                  <span className="text-[11px] text-slate-400 font-mono">
-                    Doc ID: {event.document_id}
-                  </span>
                 </div>
 
                 {/* Expanded Full Hash View Section */}
                 {isExpanded && (
                   <div className="mt-3 p-3 bg-slate-100 rounded-lg border border-slate-200 text-xs font-mono space-y-2 animate-in fade-in duration-150">
                     <div>
-                      <div className="text-[10px] text-slate-500 uppercase font-semibold">Full Previous Hash (SHA-256)</div>
-                      <div className="p-1.5 bg-white rounded border border-slate-200 text-slate-700 break-all text-[11px] select-all mt-0.5">
-                        {event.prev_hash}
-                      </div>
-                    </div>
-                    <div>
                       <div className="text-[10px] text-slate-500 uppercase font-semibold">Full Event Hash (SHA-256)</div>
                       <div className="p-1.5 bg-white rounded border border-slate-200 text-emerald-700 font-bold break-all text-[11px] select-all mt-0.5">
-                        {event.event_hash}
+                        {event.event_hash || 'N/A'}
                       </div>
                     </div>
                   </div>
@@ -265,12 +195,12 @@ function ActionBadge({ action }) {
   );
 }
 
-function HashPill({ hash, highlight = false, isGenesis = false }) {
+function HashPill({ hash, highlight = false }) {
   const [copied, setCopied] = useState(false);
 
-  const truncatedHash = isGenesis 
-    ? "0x0000...0000 (GENESIS)" 
-    : `${hash.substring(0, 8)}...${hash.substring(hash.length - 8)}`;
+  const truncatedHash = hash
+    ? `${hash.substring(0, 8)}...${hash.substring(hash.length - 8)}`
+    : 'N/A';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(hash);
@@ -287,7 +217,7 @@ function HashPill({ hash, highlight = false, isGenesis = false }) {
       }`}>
         {truncatedHash}
       </span>
-      {!isGenesis && (
+      {hash && (
         <button
           onClick={handleCopy}
           className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition"
