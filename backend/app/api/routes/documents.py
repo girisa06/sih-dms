@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_role
 from app.core.config import settings
-from app.core.encryption import encrypt_and_store
+from app.security.encryption import encrypt_and_store
 from app.db.session import get_db
 from app.models.case import Case
 from app.models.case_access import CaseAccess
@@ -67,7 +67,14 @@ async def upload_document(
     plaintext = await file.read()
     doc_id = uuid.uuid4()
 
-    encryption_result = encrypt_and_store(plaintext, str(doc_id))
+    try:
+        encryption_result = encrypt_and_store(plaintext, str(doc_id))
+    except RuntimeError as exc:
+        logger.error("Encryption failed for document %s: %s", doc_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Document encryption failed. Please contact an administrator.",
+        ) from exc
 
     document = Document(
         id=doc_id,
