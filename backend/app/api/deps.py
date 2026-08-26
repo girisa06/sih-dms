@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
@@ -44,6 +45,7 @@ def get_current_user(
     if user is None:
         raise unauthorized
 
+    request.state.user_id = subject
     return user
 
 
