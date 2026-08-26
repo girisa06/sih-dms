@@ -16,7 +16,6 @@ export default function Login() {
     setIsSubmitting(true);
     try {
       const role = await login(loginEmail, loginPassword);
-      // Route to role-specific dashboard or default officer overview
       navigate(role ? `/dashboard/${role}` : '/dashboard', { replace: true });
     } catch (caughtError) {
       setError(
@@ -112,7 +111,7 @@ export default function Login() {
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Authenticating with Render...</span>
+                <span>Authenticating...</span>
               </>
             ) : (
               'Sign In'
