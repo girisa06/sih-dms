@@ -66,6 +66,7 @@ AI/search consumers must read/write exactly these four keys — no additional ke
 | `GET /cases/{id}` | Person 1 | Get case detail | Person 4, 5 |
 | `POST /cases/{id}/access` | Person 1 | Grant time-bound sharing | Person 5 |
 | `POST /cases/{id}/documents` | Person 1 (calls Person 2's `encrypt_and_store()` internally) | Upload → hash + encrypt + store, returns `document_id` | Person 3 (triggers AI processing), Person 4 |
+| `GET /cases/{id}/documents` | Person 1 | List documents for a case | Person 5 |
 | `GET /documents/{id}` | Person 1 | Fetch document metadata | Person 5 |
 | `GET /documents/{id}/versions` | Person 1 | Fetch version history | Person 5 |
 | `POST /documents/{id}/verify` | Person 2 | Recompute hash chain, pass/fail | Person 5 |
@@ -130,6 +131,22 @@ Only shapes explicitly implied by the schema/API map above are specified. Fields
 - Request: file bytes + metadata needed for a `documents` row (`doc_type`, etc.).
 - Server flow: calls Person 2's `encrypt_and_store(plaintext, doc_id)` to populate `storage_path`, `evidentiary_hash`, `wrapped_dek`, `nonce`; writes the `documents` row; triggers `POST /ai/process/{document_id}` asynchronously as a background task (does not block the upload response on OCR completion).
 - Response: includes `document_id`.
+
+### `GET /cases/{id}/documents`
+- Response: array of `CaseDocumentResponse` objects, each shaped as:
+```json
+{
+  "id": "string",
+  "doc_type": "string",
+  "uploaded_by": "string",
+  "version": 0,
+  "mime_type": "string",
+  "evidentiary_hash": "string",
+  "classification": "string | null",
+  "created_at": "string"
+}
+```
+- Ordered by `created_at` ascending. Returns an empty array (not an error) if the case exists but has no documents yet.
 
 ### `GET /documents/{id}`
 - Response: single `documents` row (metadata).
