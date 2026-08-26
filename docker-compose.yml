@@ -19,13 +19,19 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg2://dms_user:dms_password@db:5432/dms_db
+      JWT_SECRET_KEY: development-only-change-before-production
+      MASTER_KEK: 9ZSDl8z7Q98deVF-pK7Jdkr-3c-S3IqOcb4kenuiHgY=
+      STORAGE_DIR: /app/storage
+      AI_PROCESS_BASE_URL: http://backend:8000
     ports:
       - "8000:8000"
+    volumes:
+      - backend_storage:/app/storage
     depends_on:
       db:
         condition: service_healthy
     command: >
-      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      sh -c "alembic upgrade head && python -m app.db.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -35,7 +41,7 @@ services:
   frontend:
     build: ./frontend
     environment:
-      VITE_API_BASE_URL: http://localhost:8000
+      VITE_API_PROXY_TARGET: http://backend:8000
     ports:
       - "5173:5173"
     depends_on:
@@ -44,3 +50,4 @@ services:
 
 volumes:
   db_data:
+  backend_storage:

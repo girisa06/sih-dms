@@ -1,14 +1,16 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.api.deps import get_current_user
 from app.models.audit_log import AuditLog
 from app.models.document import Document
 from app.models.signature import Signature
+from app.models.user import User
 from app.security.certificate import build_section_63_certificate
 from app.security.encryption import decrypt_from_storage
 from app.security.ledger import append_audit_event, verify_audit_chain
@@ -18,14 +20,8 @@ from app.security.watermark import watermark_pdf
 router = APIRouter(prefix="/documents", tags=["security"])
 
 
-def current_actor(request: Request) -> UUID:
-    actor_id = getattr(request.state, "user_id", None)
-    if not actor_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
-    try:
-        return UUID(str(actor_id))
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid actor identity") from exc
+def current_actor(user: User) -> UUID:
+    return user.id
 
 
 def get_document(document_id: UUID, db: Session) -> Document:
@@ -37,18 +33,18 @@ def get_document(document_id: UUID, db: Session) -> Document:
 
 @router.post("/{document_id}/verify")
 def verify_document(
-    document_id: UUID, request: Request, db: Session = Depends(get_db)
+    document_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> dict[str, bool]:
-    current_actor(request)
+    current_actor(current_user)
     get_document(document_id, db)
     return {"valid": verify_audit_chain(db, document_id)}
 
 
 @router.get("/{document_id}/audit-log")
 def audit_log(
-    document_id: UUID, request: Request, db: Session = Depends(get_db)
+    document_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> list[dict[str, str | None]]:
-    current_actor(request)
+    current_actor(current_user)
     get_document(document_id, db)
     events = db.scalars(
         select(AuditLog)
@@ -68,9 +64,9 @@ def audit_log(
 
 @router.post("/{document_id}/sign")
 def sign(
-    document_id: UUID, request: Request, db: Session = Depends(get_db)
+    document_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> dict[str, str]:
-    actor_id = current_actor(request)
+    actor_id = current_actor(current_user)
     document = get_document(document_id, db)
     signature = Signature(
         document_id=document.id,
@@ -86,9 +82,9 @@ def sign(
 
 @router.post("/{document_id}/certificate")
 def certificate(
-    document_id: UUID, request: Request, db: Session = Depends(get_db)
+    document_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> Response:
-    actor_id = current_actor(request)
+    actor_id = current_actor(current_user)
     document = get_document(document_id, db)
     pdf = build_section_63_certificate(
         document.id, document.evidentiary_hash, document.mime_type, document.version
@@ -104,9 +100,9 @@ def certificate(
 
 @router.get("/{document_id}/download")
 def download(
-    document_id: UUID, request: Request, db: Session = Depends(get_db)
+    document_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> StreamingResponse:
-    actor_id = current_actor(request)
+    actor_id = current_actor(current_user)
     document = get_document(document_id, db)
     try:
         plaintext = decrypt_from_storage(
