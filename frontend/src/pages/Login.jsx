@@ -31,7 +31,7 @@ export default function Login() {
     signIn(email, password);
   };
 
-  const useTestRole = (role) => {
+  const handleTestRole = (role) => {
     const testEmail = `${role}@sih.test`;
     setEmail(testEmail);
     setPassword('demo-password');
@@ -119,7 +119,7 @@ export default function Login() {
                 key={role}
                 type="button"
                 disabled={isSubmitting}
-                onClick={() => useTestRole(role)}
+                onClick={() => handleTestRole(role)}
                 className="rounded-md border border-slate-700 bg-slate-800 px-2 py-2 text-xs capitalize text-slate-200 transition hover:border-cyan-400 hover:text-cyan-300 disabled:opacity-60"
               >
                 {role.replace('_', ' ')}
