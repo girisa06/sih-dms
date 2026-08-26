@@ -16,7 +16,6 @@ export default function Login() {
     setIsSubmitting(true);
     try {
       const role = await login(loginEmail, loginPassword);
-      // Route to role-specific dashboard or default officer overview
       navigate(role ? `/dashboard/${role}` : '/dashboard', { replace: true });
     } catch (caughtError) {
       setError(
@@ -112,7 +111,7 @@ export default function Login() {
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Authenticating with Render...</span>
+                <span>Authenticating...</span>
               </>
             ) : (
               'Sign In'
@@ -120,23 +119,18 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-7 border-t border-slate-800 pt-5">
-          <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Development quick access
+        <div className="mt-6 border-t border-slate-800/80 pt-4">
+          <p className="mb-2.5 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            Seeded Test Account
           </p>
-          <div className="grid grid-cols-2 gap-2">
-            {TEST_ROLES.map((role) => (
-              <button
-                key={role}
-                type="button"
-                disabled={isSubmitting}
-                onClick={() => useTestRole(role)}
-                className="rounded-md border border-slate-700 bg-slate-800 px-2 py-2 text-xs capitalize text-slate-200 transition hover:border-cyan-400 hover:text-cyan-300 disabled:opacity-60"
-              >
-                {role.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={fillTestCredentials}
+            className="w-full rounded-lg border border-dashed border-slate-700 bg-slate-800/50 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:bg-slate-800 hover:text-cyan-300"
+          >
+            Use <code className="text-cyan-400">test@test.com</code> / <code className="text-cyan-400">testpass123</code>
+          </button>
         </div>
       </section>
     </main>
