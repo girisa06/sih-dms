@@ -42,7 +42,6 @@ def encrypt_and_store(plaintext: bytes, doc_id: UUID | str) -> dict[str, str]:
         "evidentiary_hash": evidentiary_hash,
         "wrapped_dek": base64.urlsafe_b64encode(wrap_nonce + wrapped_dek).decode(),
         "nonce": base64.urlsafe_b64encode(nonce).decode(),
-        "mime_type": "application/octet-stream",
     }
 
 
