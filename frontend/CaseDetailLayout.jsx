@@ -13,88 +13,67 @@ import {
   ArrowLeft
 } from 'lucide-react';
 
-// --- FALLBACK MOCK DATA ---
-// Aligned with the 'cases' and 'audit_log' schema specifications
-const MOCK_CASE_DATA = {
-  id: "c101",
-  case_number: "FIR-2026-0892",
-  title: "State vs. Cyber Breach Logistics Ltd.",
-  created_by: "Insp. Rajesh Kumar (ID: OFF-4022)",
-  status: "UNDER_INVESTIGATION", // Enum: OPEN, UNDER_INVESTIGATION, FILED, CLOSED
-  created_at: "2026-08-20T10:30:00Z",
-  description: "Investigation into unauthorized system access, data exfiltration, and potential insider tampering with secure logs.",
-  
-  // Timeline events representing audit logs and case milestones
-  timeline: [
-    {
-      id: "evt-1",
-      date: "2026-08-20T10:30:00Z",
-      title: "First Information Report (FIR) Registered",
-      actor: "Insp. Rajesh Kumar",
-      type: "CREATION",
-      hash: "a3f89e1b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f",
-      description: "FIR registered under section 66 (IT Act). Initial document set attached."
-    },
-    {
-      id: "evt-2",
-      date: "2026-08-21T14:15:00Z",
-      title: "Forensic Evidence Uploaded",
-      actor: "Dr. A. Sharma (Forensic Expert)",
-      type: "EVIDENCE",
-      hash: "b4e90f2c3d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a",
-      description: "Memory dump and disk image forensic reports uploaded with SHA-256 envelope encryption."
-    },
-    {
-      id: "evt-3",
-      date: "2026-08-23T09:45:00Z",
-      title: "Time-Bound Access Granted",
-      actor: "Insp. Rajesh Kumar",
-      type: "ACCESS",
-      hash: "c5f01a3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b",
-      description: "Granted temporary read-only access to Public Prosecutor (Expires 2026-09-01)."
-    },
-    {
-      id: "evt-4",
-      date: "2026-08-25T16:00:00Z",
-      title: "Draft Chargesheet Attached",
-      actor: "Adv. Meera Nair (Prosecutor)",
-      type: "FILING",
-      hash: "d6a12b4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c",
-      description: "Preliminary chargesheet reviewed and queued for digital signing."
-    }
-  ]
-};
+const API_BASE_URL = "https://sih-dms.onrender.com";
 
 export default function CaseDetailLayout({ caseId = "c101" }) {
   const [caseData, setCaseData] = useState(null);
+  const [timelineEvents, setTimelineEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isUsingMock, setIsUsingMock] = useState(false);
   const [activeTab, setActiveTab] = useState('timeline');
 
   useEffect(() => {
-    async function fetchCaseDetails() {
+    async function fetchCaseAndAuditData() {
       setLoading(true);
+      setError(null);
       try {
-        // Attempting connection to Person 1's backend endpoint
-        const response = await fetch(`/cases/${caseId}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        // Step 1: Fetch Case Details from Person 1's Backend
+        const caseRes = await fetch(`${API_BASE_URL}/cases/${caseId}`);
+        if (!caseRes.ok) {
+          throw new Error(`Failed to load case details (Status ${caseRes.status})`);
         }
-        const data = await response.json();
+        const data = await caseRes.json();
         setCaseData(data);
-        setIsUsingMock(false);
+
+        // Step 2: Extract documents and fetch live audit logs from Person 2's API
+        const documents = data.documents || [];
+        if (documents.length > 0) {
+          const auditPromises = documents.map(doc =>
+            fetch(`${API_BASE_URL}/documents/${doc.id || doc._id}/audit-log`)
+              .then(res => (res.ok ? res.json() : []))
+              .then(logs =>
+                logs.map(log => ({
+                  id: log.event_hash || Math.random().toString(),
+                  date: log.timestamp,
+                  title: `${log.action} - ${doc.title || doc.file_name || 'Document'}`,
+                  actor: log.actor || 'System',
+                  hash: log.event_hash || 'N/A',
+                  description: `Audit event recorded for document ID: ${doc.id || doc._id}`
+                }))
+              )
+              .catch(() => [])
+          );
+
+          const nestedLogs = await Promise.all(auditPromises);
+          const allLogs = nestedLogs.flat();
+
+          // Step 3: Sort entries chronologically (newest first)
+          allLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
+          setTimelineEvents(allLogs);
+        } else {
+          setTimelineEvents([]);
+        }
       } catch (err) {
-        console.warn("Backend unavailable. Falling back to Mock Data for development.", err);
-        // Fallback to mock data state
-        setCaseData(MOCK_CASE_DATA);
-        setIsUsingMock(true);
+        console.error("Error fetching live case/audit data:", err);
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchCaseDetails();
+    if (caseId) {
+      fetchCaseAndAuditData();
+    }
   }, [caseId]);
 
   if (loading) {
@@ -102,22 +81,24 @@ export default function CaseDetailLayout({ caseId = "c101" }) {
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="flex items-center space-x-3 text-slate-600">
           <Clock className="w-6 h-6 animate-spin text-blue-600" />
-          <span className="text-lg font-medium">Loading case file...</span>
+          <span className="text-lg font-medium">Fetching live case audit logs...</span>
         </div>
+      </div>
+    );
+  }
+
+  if (error || !caseData) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6 text-center">
+        <AlertCircle className="w-12 h-12 text-rose-500 mb-3" />
+        <h2 className="text-lg font-bold text-slate-800">Unable to Load Case Timeline</h2>
+        <p className="text-sm text-slate-500 max-w-md mt-1">{error || "Case record not found."}</p>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12">
-      {/* Top Banner for Mock Data Notification */}
-      {isUsingMock && (
-        <div className="bg-amber-500 text-amber-950 px-4 py-1.5 text-xs font-semibold text-center flex items-center justify-center gap-2 shadow-inner">
-          <AlertCircle className="w-4 h-4" />
-          <span>Backend endpoints unreachable. Running in Mock Data Fallback Mode.</span>
-        </div>
-      )}
-
       {/* Navigation Header */}
       <nav className="bg-slate-900 text-white border-b border-slate-800 px-6 py-3.5 flex items-center justify-between">
         <div className="flex items-center space-x-4">
@@ -125,12 +106,12 @@ export default function CaseDetailLayout({ caseId = "c101" }) {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <span className="text-sm font-semibold tracking-wider uppercase text-slate-400">
-            Case Details & Audit Trail[cite: 1]
+            Case Details & Audit Trail
           </span>
         </div>
         <div className="flex items-center space-x-2">
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <ShieldCheck className="w-3.5 h-3.5 mr-1" /> BSA Section 63 Compliant[cite: 1]
+            <ShieldCheck className="w-3.5 h-3.5 mr-1" /> BSA Section 63 Compliant
           </span>
         </div>
       </nav>
@@ -143,11 +124,11 @@ export default function CaseDetailLayout({ caseId = "c101" }) {
             <div>
               <div className="flex items-center gap-3">
                 <span className="font-mono text-sm font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded border border-slate-200">
-                  {caseData.case_number}
+                  {caseData.case_number || caseData.id}
                 </span>
                 <StatusBadge status={caseData.status} />
               </div>
-              <h1 className="text-2xl font-bold text-slate-900 mt-2">{caseData.title}</h1>
+              <h1 className="text-2xl font-bold text-slate-900 mt-2">{caseData.title || "Untitled Case"}</h1>
             </div>
 
             <div className="flex items-center gap-3">
@@ -161,18 +142,18 @@ export default function CaseDetailLayout({ caseId = "c101" }) {
           </div>
 
           <p className="text-slate-600 text-sm mt-3 border-t border-slate-100 pt-3">
-            {caseData.description}
+            {caseData.description || "No description available for this case."}
           </p>
 
           {/* Key Metadata Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-slate-100 text-xs">
             <div className="flex items-center text-slate-600">
               <User className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
-              <span>Created By: <strong className="text-slate-800">{caseData.created_by}</strong></span>
+              <span>Created By: <strong className="text-slate-800">{caseData.created_by || "System Admin"}</strong></span>
             </div>
             <div className="flex items-center text-slate-600">
               <Calendar className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
-              <span>Created Date: <strong className="text-slate-800">{new Date(caseData.created_at).toLocaleString()}</strong></span>
+              <span>Created Date: <strong className="text-slate-800">{caseData.created_at ? new Date(caseData.created_at).toLocaleString() : "N/A"}</strong></span>
             </div>
             <div className="flex items-center text-slate-600">
               <Lock className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
@@ -212,17 +193,17 @@ export default function CaseDetailLayout({ caseId = "c101" }) {
         {activeTab === 'timeline' && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <History className="w-5 h-5 text-blue-600" /> Case Activity & Event Timeline
+              <History className="w-5 h-5 text-blue-600" /> Live Audit Log Timeline
             </h2>
 
             {/* Dynamic Vertical Timeline Component */}
             <div className="relative pl-6 sm:pl-8 border-l-2 border-slate-200 space-y-8 my-4 ml-2">
-              {caseData.timeline && caseData.timeline.length > 0 ? (
-                caseData.timeline.map((event) => (
-                  <TimelineEventItem key={event.id} event={event} />
+              {timelineEvents.length > 0 ? (
+                timelineEvents.map((event, idx) => (
+                  <TimelineEventItem key={event.id || idx} event={event} />
                 ))
               ) : (
-                <div className="text-slate-500 text-sm py-4">No events logged for this case yet.</div>
+                <div className="text-slate-500 text-sm py-4">No audit events logged for this case yet.</div>
               )}
             </div>
           </div>
@@ -253,7 +234,7 @@ function TimelineEventItem({ event }) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
           <h3 className="text-base font-semibold text-slate-900">{event.title}</h3>
           <time className="text-xs text-slate-500 font-mono">
-            {new Date(event.date).toLocaleString()}
+            {event.date ? new Date(event.date).toLocaleString() : 'N/A'}
           </time>
         </div>
 
@@ -264,7 +245,7 @@ function TimelineEventItem({ event }) {
             Actor: <strong className="text-slate-700">{event.actor}</strong>
           </span>
           <div className="font-mono text-[10px] bg-slate-200/60 text-slate-600 px-2 py-0.5 rounded truncate max-w-xs" title={`Hash: ${event.hash}`}>
-            Hash: {event.hash.substring(0, 16)}...
+            Hash: {event.hash ? event.hash.substring(0, 16) : 'N/A'}...
           </div>
         </div>
       </div>
@@ -282,7 +263,7 @@ function StatusBadge({ status }) {
 
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[status] || styles.OPEN}`}>
-      {status ? status.replace('_', ' ') : 'UNKNOWN'}
+      {status ? status.replace('_', ' ') : 'OPEN'}
     </span>
   );
 }
@@ -295,7 +276,7 @@ function PlaceholderTab({ title, icon: Icon }) {
       </div>
       <h3 className="text-lg font-bold text-slate-800 mb-1">{title}</h3>
       <p className="text-slate-500 text-sm max-w-md mx-auto">
-        This view is scheduled to be connected to backend APIs during subsequent integration checkpoints[cite: 1].
+        This view is scheduled to be connected to backend APIs during subsequent integration checkpoints.
       </p>
     </div>
   );
