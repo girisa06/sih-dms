@@ -5,6 +5,7 @@ from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
 from app.models.document import Document
@@ -37,7 +38,10 @@ def get_document(document_id: UUID, db: Session) -> Document:
 
 @router.post("/{document_id}/verify")
 def verify_document(
-    document_id: UUID, request: Request, db: Session = Depends(get_db)
+    document_id: UUID,
+    request: Request,
+    _current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> dict[str, bool]:
     current_actor(request)
     get_document(document_id, db)
@@ -46,7 +50,10 @@ def verify_document(
 
 @router.get("/{document_id}/audit-log")
 def audit_log(
-    document_id: UUID, request: Request, db: Session = Depends(get_db)
+    document_id: UUID,
+    request: Request,
+    _current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> list[dict[str, str | None]]:
     current_actor(request)
     get_document(document_id, db)
@@ -68,7 +75,10 @@ def audit_log(
 
 @router.post("/{document_id}/sign")
 def sign(
-    document_id: UUID, request: Request, db: Session = Depends(get_db)
+    document_id: UUID,
+    request: Request,
+    _current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> dict[str, str]:
     actor_id = current_actor(request)
     document = get_document(document_id, db)
@@ -86,7 +96,10 @@ def sign(
 
 @router.post("/{document_id}/certificate")
 def certificate(
-    document_id: UUID, request: Request, db: Session = Depends(get_db)
+    document_id: UUID,
+    request: Request,
+    _current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> Response:
     actor_id = current_actor(request)
     document = get_document(document_id, db)
@@ -104,7 +117,10 @@ def certificate(
 
 @router.get("/{document_id}/download")
 def download(
-    document_id: UUID, request: Request, db: Session = Depends(get_db)
+    document_id: UUID,
+    request: Request,
+    _current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> StreamingResponse:
     actor_id = current_actor(request)
     document = get_document(document_id, db)
