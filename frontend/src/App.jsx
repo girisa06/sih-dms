@@ -16,37 +16,19 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   return children;
 };
 
-const DEFAULT_MOCK_CASES = [
-  {
-    id: 'CASE-2026-001',
-    case_number: 'CASE-2026-001',
-    title: 'State of TN vs. Ramesh (FIR #102/26)',
-    status: 'Under Investigation',
-    created_at: '2026-08-25',
-  },
-  {
-    id: 'CASE-2026-002',
-    case_number: 'CASE-2026-002',
-    title: 'Financial Fraud Inquiry (FIR #044/26)',
-    status: 'Forensic Analysis',
-    created_at: '2026-08-24',
-  },
-];
-
 const CaseListView = () => {
-  const [cases, setCases] = useState(DEFAULT_MOCK_CASES);
+  const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchCases = async () => {
       try {
         const res = await axios.get('/cases');
-        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-          setCases(res.data);
-        }
+        setCases(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
-        // Fallback to mock cases during local dev
-        setCases(DEFAULT_MOCK_CASES);
+        setCases([]);
+        setError(err.response?.data?.detail || 'Unable to load cases from the backend.');
       } finally {
         setLoading(false);
       }
@@ -68,7 +50,7 @@ const CaseListView = () => {
         <FolderOpen className="w-12 h-12 text-slate-600 mx-auto mb-3" />
         <h3 className="text-slate-300 font-medium">No Cases Found</h3>
         <p className="text-xs text-slate-500 mt-1">
-          No legal cases registered yet. Use the upload button to add evidence.
+          {error || 'No legal cases registered yet. Create a case before uploading evidence.'}
         </p>
       </div>
     );
@@ -94,10 +76,10 @@ const CaseListView = () => {
           </thead>
           <tbody className="divide-y divide-slate-800/60">
             {cases.map((c) => {
-              const caseId = c.case_number || c.id;
+              const caseId = c.id;
               return (
                 <tr key={caseId} className="hover:bg-slate-800/30">
-                  <td className="p-3 font-mono text-cyan-400">{caseId}</td>
+                  <td className="p-3 font-mono text-cyan-400">{c.case_number}</td>
                   <td className="p-3 font-medium text-white">{c.title}</td>
                   <td className="p-3">
                     <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">

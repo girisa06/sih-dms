@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { UploadCloud, FileText, CheckCircle, AlertCircle, X, Loader2 } from 'lucide-react';
 import axios from 'axios';
 
@@ -11,13 +11,37 @@ const DOC_TYPES = [
   { value: 'evidence', label: 'Digital Evidence / Annexure' },
 ];
 
-export default function UploadModal({ isOpen, onClose, caseId = 'CASE-2026-001' }) {
+export default function UploadModal({ isOpen, onClose }) {
   const [file, setFile] = useState(null);
   const [docType, setDocType] = useState('fir');
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [ocrPreview, setOcrPreview] = useState(null);
   const [error, setError] = useState('');
+  const [cases, setCases] = useState([]);
+  const [caseId, setCaseId] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadCases = async () => {
+      try {
+        const response = await axios.get('/cases');
+        const availableCases = Array.isArray(response.data) ? response.data : [];
+        setCases(availableCases);
+        setCaseId(availableCases[0]?.id || '');
+        if (availableCases.length === 0) {
+          setError('Create a case before uploading a document.');
+        }
+      } catch (caughtError) {
+        setCases([]);
+        setCaseId('');
+        setError(caughtError.response?.data?.detail || 'Unable to load available cases.');
+      }
+    };
+
+    loadCases();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -33,6 +57,10 @@ export default function UploadModal({ isOpen, onClose, caseId = 'CASE-2026-001' 
     e.preventDefault();
     if (!file) {
       setError('Please select a file to upload.');
+      return;
+    }
+    if (!caseId) {
+      setError('Select a valid case before uploading.');
       return;
     }
 
@@ -53,30 +81,17 @@ export default function UploadModal({ isOpen, onClose, caseId = 'CASE-2026-001' 
         },
       });
 
-      setOcrPreview(res.data?.entities || {
-        case_no: caseId,
-        doc_type: docType,
-        extracted_text: "State vs Unknown. Scanned document verified and hash-linked.",
-        status: "Queued for Section 63 Certification & AI Pipeline"
+      const metadata = await axios.get(`/documents/${res.data.document_id}`);
+      setOcrPreview({
+        document_id: res.data.document_id,
+        evidentiary_hash: metadata.data.evidentiary_hash,
+        mime_type: metadata.data.mime_type,
+        status: 'Encrypted and stored. AI processing is queued.',
       });
       setProgress(100);
     } catch (err) {
-      // Mock fallback so testing works while Person 1's backend is offline
-      setTimeout(() => {
-        setProgress(100);
-        setOcrPreview({
-          case_no: caseId,
-          doc_type: docType,
-          entities: {
-            case_no: caseId,
-            sections: ["BNS 302", "BNS 120B"],
-            names: ["Ramesh Kumar", "Insp. S. Sharma"],
-            dates: ["2026-08-25"]
-          },
-          extracted_text: `Preview for ${file.name}: State vs. Accused. Sections registered. SHA-256 computed.`,
-          status: "Offline Mock Mode - Successfully Verified"
-        });
-      }, 1000);
+      setProgress(0);
+      setError(err.response?.data?.detail || 'Document upload failed.');
     } finally {
       setUploading(false);
     }
@@ -109,6 +124,27 @@ export default function UploadModal({ isOpen, onClose, caseId = 'CASE-2026-001' 
 
         {!ocrPreview ? (
           <form onSubmit={handleUpload} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                Target Case
+              </label>
+              <select
+                value={caseId}
+                onChange={(event) => setCaseId(event.target.value)}
+                disabled={cases.length === 0}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:border-cyan-400 outline-none disabled:opacity-50"
+              >
+                {cases.length === 0 ? (
+                  <option value="">No accessible cases</option>
+                ) : (
+                  cases.map((caseItem) => (
+                    <option key={caseItem.id} value={caseItem.id}>
+                      {caseItem.case_number} — {caseItem.title}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
                 Document Classification
@@ -168,9 +204,9 @@ export default function UploadModal({ isOpen, onClose, caseId = 'CASE-2026-001' 
           <div className="space-y-4">
             <div className="p-4 bg-cyan-950/30 border border-cyan-500/30 rounded-xl">
               <div className="flex items-center gap-2 text-cyan-400 font-semibold text-sm mb-2">
-                <CheckCircle className="w-5 h-5" /> Ingested & Hash-Chained Successfully
+                <CheckCircle className="w-5 h-5" /> Document uploaded successfully
               </div>
-              <p className="text-xs text-slate-400 mb-2">AI OCR & Entity Extraction Preview:</p>
+              <p className="text-xs text-slate-400 mb-2">Live backend response:</p>
               <pre className="bg-slate-950 p-3 rounded-lg text-xs text-slate-300 overflow-x-auto border border-slate-800">
                 {JSON.stringify(ocrPreview, null, 2)}
               </pre>
