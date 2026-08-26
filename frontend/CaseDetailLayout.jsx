@@ -26,38 +26,55 @@ export default function CaseDetailLayout({ caseId = "c101" }) {
     async function fetchCaseAndAuditData() {
       setLoading(true);
       setError(null);
+
+      // Extract authentication token from localStorage if present
+      const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+      const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+
       try {
-        // Step 1: Fetch Case Details from Person 1's Backend
-        const caseRes = await fetch(`${API_BASE_URL}/cases/${caseId}`);
+        // Step 1: Fetch Case Metadata from Person 1's API
+        const caseRes = await fetch(`${API_BASE_URL}/cases/${caseId}`, {
+          headers: { ...authHeaders, 'Content-Type': 'application/json' }
+        });
+        
         if (!caseRes.ok) {
           throw new Error(`Failed to load case details (Status ${caseRes.status})`);
         }
         const data = await caseRes.json();
         setCaseData(data);
 
-        // Step 2: Extract documents and fetch live audit logs from Person 2's API
-        const documents = data.documents || [];
-        if (documents.length > 0) {
-          const auditPromises = documents.map(doc =>
-            fetch(`${API_BASE_URL}/documents/${doc.id || doc._id}/audit-log`)
+        // Step 2: Fetch Case Documents using Person 1's direct documents endpoint
+        const docsRes = await fetch(`${API_BASE_URL}/cases/${caseId}/documents`, {
+          headers: { ...authHeaders, 'Content-Type': 'application/json' }
+        });
+
+        const documents = docsRes.ok ? await docsRes.json() : [];
+
+        // Step 3: Fetch audit logs for each document from Person 2's API
+        if (Array.isArray(documents) && documents.length > 0) {
+          const auditPromises = documents.map(doc => {
+            const docId = doc.id || doc._id;
+            return fetch(`${API_BASE_URL}/documents/${docId}/audit-log`, {
+              headers: { ...authHeaders, 'Content-Type': 'application/json' }
+            })
               .then(res => (res.ok ? res.json() : []))
-              .then(logs =>
+              .then(logs => 
                 logs.map(log => ({
                   id: log.event_hash || Math.random().toString(),
-                  date: log.timestamp,
-                  title: `${log.action} - ${doc.title || doc.file_name || 'Document'}`,
-                  actor: log.actor || 'System',
-                  hash: log.event_hash || 'N/A',
-                  description: `Audit event recorded for document ID: ${doc.id || doc._id}`
+                  date: log.timestamp || doc.created_at,
+                  title: `${log.action || 'UPLOAD'} - ${doc.doc_type || 'Document'}`,
+                  actor: log.actor || doc.uploaded_by || 'System',
+                  hash: log.event_hash || doc.evidentiary_hash || 'N/A',
+                  description: `Doc ID: ${docId} | Version: ${doc.version || '1.0'} | Class: ${doc.classification || 'Standard'}`
                 }))
               )
-              .catch(() => [])
-          );
+              .catch(() => []);
+          });
 
           const nestedLogs = await Promise.all(auditPromises);
           const allLogs = nestedLogs.flat();
 
-          // Step 3: Sort entries chronologically (newest first)
+          // Step 4: Sort entries chronologically (newest first)
           allLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
           setTimelineEvents(allLogs);
         } else {
