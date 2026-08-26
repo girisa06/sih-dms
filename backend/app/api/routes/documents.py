@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_role
 from app.core.config import settings
 from app.security.encryption import encrypt_and_store
+from app.security.ledger import append_audit_event
 from app.db.session import get_db
 from app.models.case import Case
 from app.models.case_access import CaseAccess
@@ -91,6 +92,15 @@ async def upload_document(
     db.add(document)
     db.commit()
     db.refresh(document)
+
+    try:
+        append_audit_event(db, document.id, current_user.id, "upload")
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.warning(
+            "Failed to record 'upload' audit event for document %s", document.id, exc_info=True
+        )
 
     background_tasks.add_task(_trigger_ai_processing, document.id)
 
