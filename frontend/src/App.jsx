@@ -1,128 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
-import axios from 'axios';
-import { FolderOpen, Loader2 } from 'lucide-react';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
-import DashboardShell from './components/DashboardShell';
+import OfficerDashboard from './pages/OfficerDashboard';
 import CaseTimeline from './pages/CaseTimeline';
 
+// ProtectedRoute ensures a user is logged in and has the right role
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
+
+  // If not logged in, send to login page
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // If role is restricted and user doesn't have it, redirect them to their specific dashboard
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to={`/dashboard/${user.role}`} replace />;
   }
+
+  // Auth looks good, render the dashboard component
   return children;
-};
-
-const DEFAULT_MOCK_CASES = [
-  {
-    id: 'CASE-2026-001',
-    case_number: 'CASE-2026-001',
-    title: 'State of TN vs. Ramesh (FIR #102/26)',
-    status: 'Under Investigation',
-    created_at: '2026-08-25',
-  },
-  {
-    id: 'CASE-2026-002',
-    case_number: 'CASE-2026-002',
-    title: 'Financial Fraud Inquiry (FIR #044/26)',
-    status: 'Forensic Analysis',
-    created_at: '2026-08-24',
-  },
-];
-
-const CaseListView = () => {
-  const [cases, setCases] = useState(DEFAULT_MOCK_CASES);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchCases = async () => {
-      try {
-        const res = await axios.get('/cases');
-        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-          setCases(res.data);
-        }
-      } catch (err) {
-        // Fallback to mock cases during local dev
-        setCases(DEFAULT_MOCK_CASES);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCases();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-12 text-slate-400 gap-2">
-        <Loader2 className="w-5 h-5 animate-spin" /> Loading case dossiers...
-      </div>
-    );
-  }
-
-  if (cases.length === 0) {
-    return (
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
-        <FolderOpen className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-        <h3 className="text-slate-300 font-medium">No Cases Found</h3>
-        <p className="text-xs text-slate-500 mt-1">
-          No legal cases registered yet. Use the upload button to add evidence.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-white">Active Case Dossiers</h2>
-        <span className="text-xs text-slate-400">Total: {cases.length} Cases</span>
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <table className="w-full text-left text-xs text-slate-300">
-          <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
-            <tr>
-              <th className="p-3">Case ID</th>
-              <th className="p-3">Case Title</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Created</th>
-              <th className="p-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {cases.map((c) => {
-              const caseId = c.case_number || c.id;
-              return (
-                <tr key={caseId} className="hover:bg-slate-800/30">
-                  <td className="p-3 font-mono text-cyan-400">{caseId}</td>
-                  <td className="p-3 font-medium text-white">{c.title}</td>
-                  <td className="p-3">
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      {c.status || 'Active'}
-                    </span>
-                  </td>
-                  <td className="p-3 text-slate-400">
-                    {c.created_at?.slice(0, 10) || '2026-08-25'}
-                  </td>
-                  <td className="p-3 text-right">
-                    <Link
-                      to={`/cases/${caseId}/timeline`}
-                      className="text-cyan-400 hover:underline font-medium"
-                    >
-                      View Timeline
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
 };
 
 export default function App() {
@@ -130,61 +28,20 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {/* Unprotected Login Route */}
           <Route path="/login" element={<Login />} />
 
-          {/* Role Scoped Dashboards */}
+          {/* Protected Officer Console */}
           <Route
             path="/dashboard/officer"
             element={
               <ProtectedRoute allowedRoles={['officer', 'admin']}>
-                <DashboardShell roleTitle="Investigating Officer Console">
-                  <CaseListView />
-                </DashboardShell>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard/prosecutor"
-            element={
-              <ProtectedRoute allowedRoles={['prosecutor', 'admin']}>
-                <DashboardShell roleTitle="Public Prosecutor Portal">
-                  <CaseListView />
-                </DashboardShell>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard/forensic_expert"
-            element={
-              <ProtectedRoute allowedRoles={['forensic_expert', 'admin']}>
-                <DashboardShell roleTitle="Forensic Lab Analysis Workspace">
-                  <CaseListView />
-                </DashboardShell>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard/judge"
-            element={
-              <ProtectedRoute allowedRoles={['judge', 'admin']}>
-                <DashboardShell roleTitle="Judicial Vault & Review">
-                  <CaseListView />
-                </DashboardShell>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard/admin"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <DashboardShell roleTitle="System Admin & Access Control">
-                  <CaseListView />
-                </DashboardShell>
+                <OfficerDashboard />
               </ProtectedRoute>
             }
           />
 
-          {/* Chain-of-Custody Timeline Route */}
+          {/* Protected Case Timeline (The animated sci-fi page) */}
           <Route
             path="/cases/:id/timeline"
             element={
@@ -194,7 +51,10 @@ export default function App() {
             }
           />
 
-          {/* Fallback */}
+          {/* Role-Based Redirects (If a user tries to access just /dashboard) */}
+          <Route path="/dashboard" element={<Navigate to="/dashboard/officer" replace />} />
+          
+          {/* Default Fallback (Redirect everything else to login) */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
