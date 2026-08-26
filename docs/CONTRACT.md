@@ -76,7 +76,7 @@ AI/search consumers must read/write exactly these four keys — no additional ke
 | `POST /ai/process/{document_id}` | Person 3 | OCR + classify + extract entities, writes back onto the `documents` row | Triggered internally by Person 1's upload flow (background, async) |
 | `GET /search?q=` | Person 3 | Search across `ocr_text` / `entities` | Person 4, 5 |
 
-Auth: all endpoints except `POST /auth/login` require a valid JWT with a role claim. Role-gating per endpoint (RBAC) is enforced server-side by Person 1 via a `require_role(...)` dependency; specific per-role permission mapping is not specified beyond the role list in Section 1 and is left to Person 1's implementation.
+Auth: all endpoints except `POST /auth/login` require a valid JWT supplied in the `Authorization` header as `Bearer <JWT>`. Role-gating per endpoint (RBAC) is enforced server-side by Person 1 via a `Depends(require_role(...))` dependency; specific per-role permission mapping is not specified beyond the role list in Section 1 and is left to Person 1's implementation. See Section 4's `POST /auth/login` entry for the exact JWT contract and failure status codes.
 
 ---
 
@@ -85,8 +85,31 @@ Auth: all endpoints except `POST /auth/login` require a valid JWT with a role cl
 Only shapes explicitly implied by the schema/API map above are specified. Fields not listed here are not part of the locked contract.
 
 ### `POST /auth/login`
-- Request: credentials (email, password) — issues a JWT containing the user's `role`.
-- Response: JWT token.
+- Request:
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
+- Response:
+```json
+{
+  "access_token": "string",
+  "token_type": "bearer"
+}
+```
+- Authentication scheme: the returned JWT is supplied on all subsequent requests in the `Authorization` header as `Bearer <JWT>`.
+- JWT claims — exactly these three, no others (no `email` or any other application-specific claim):
+  - `sub`: authenticated user's UUID (`users.id`), as a string
+  - `role`: authenticated user's existing `UserRole` value (Section 1)
+  - `exp`: token expiration timestamp
+- Token expiration: 30 minutes from issuance.
+- Failure behavior:
+  - Invalid credentials on login: `401`
+  - Missing, malformed, invalid, or expired JWT on any protected endpoint: `401`
+  - Authenticated user lacking a required role: `403`
+- RBAC dependency pattern: `Depends(require_role(...))`, applied per endpoint per Section 3's ownership map.
 
 ### `POST /cases`
 - Request: fields needed to populate a `cases` row (`case_number`, `title`; `created_by`, `status`, `created_at` are server-set).
