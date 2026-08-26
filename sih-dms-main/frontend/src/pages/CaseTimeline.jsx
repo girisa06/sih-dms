@@ -112,6 +112,7 @@ export default function CaseTimeline() {
         }
 
         setDocuments([]);
+
         const res = await axios.get(`/cases/${caseId}/timeline`);
         if (res.data && Array.isArray(res.data.events)) {
           setTimeline(res.data);
