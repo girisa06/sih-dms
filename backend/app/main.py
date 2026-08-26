@@ -4,6 +4,7 @@ import uuid
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.ai.routes import router as ai_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.cases import router as cases_router
 from app.api.routes.documents import router as documents_router
@@ -28,6 +29,7 @@ app.include_router(auth_router)
 app.include_router(cases_router)
 app.include_router(documents_router)
 app.include_router(security_router)
+app.include_router(ai_router)
 
 @app.get("/health")
 def health_check():

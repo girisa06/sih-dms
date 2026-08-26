@@ -3,8 +3,17 @@ OCR module -- turns document bytes into plain text.
 """
 
 import io
-import pytesseract
-from PIL import Image
+import logging
+
+logger = logging.getLogger(__name__)
+
+try:
+    import pytesseract
+    from PIL import Image
+
+    _OCR_AVAILABLE = True
+except ImportError:
+    _OCR_AVAILABLE = False
 
 
 def run_ocr(image_path: str) -> str:
@@ -13,8 +22,16 @@ def run_ocr(image_path: str) -> str:
     real pipeline now goes through run_ocr_from_bytes since documents
     arrive decrypted in-memory, not as files on disk.
     """
-    image = Image.open(image_path)
-    return pytesseract.image_to_string(image)
+    if not _OCR_AVAILABLE:
+        logger.warning("OCR unavailable: pytesseract/Pillow not installed")
+        return "OCR unavailable"
+
+    try:
+        image = Image.open(image_path)
+        return pytesseract.image_to_string(image)
+    except Exception:
+        logger.warning("OCR failed for %s", image_path, exc_info=True)
+        return "OCR unavailable"
 
 
 def run_ocr_from_bytes(file_bytes: bytes, mime_type: str = "image/png") -> str:
@@ -28,5 +45,13 @@ def run_ocr_from_bytes(file_bytes: bytes, mime_type: str = "image/png") -> str:
     first (e.g. via pdf2image) -- confirm with the team what mime
     types actually come through the upload endpoint.
     """
-    image = Image.open(io.BytesIO(file_bytes))
-    return pytesseract.image_to_string(image)
+    if not _OCR_AVAILABLE:
+        logger.warning("OCR unavailable: pytesseract/Pillow not installed")
+        return "OCR unavailable"
+
+    try:
+        image = Image.open(io.BytesIO(file_bytes))
+        return pytesseract.image_to_string(image)
+    except Exception:
+        logger.warning("OCR failed on in-memory bytes (mime_type=%s)", mime_type, exc_info=True)
+        return "OCR unavailable"
