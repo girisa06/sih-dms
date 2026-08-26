@@ -7,13 +7,13 @@ import {
   ArrowLeft, 
   Lock, 
   Fingerprint, 
-  Clock,
-  FileBadge2,
-  RefreshCw,
-  Layers,
-  Sparkles,
-  Binary,
-  Radio
+  Clock, 
+  FileBadge2, 
+  RefreshCw, 
+  Layers, 
+  Sparkles, 
+  Binary, 
+  Radio 
 } from 'lucide-react';
 import DashboardShell from '../components/DashboardShell';
 import axios from 'axios';
@@ -90,7 +90,7 @@ export default function CaseTimeline() {
             actor: doc.uploaded_by || 'Unknown User',
             role: 'officer',
             sha256_hash: doc.evidentiary_hash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-            prev_hash: index === 0 ? 'GENESIS_BLOCK_000000000000000000000000000000000000000000000000' : (array[index - 1]?.evidentiary_hash || 'GENESIS_BLOCK'),
+            prev_hash: index === 0 ? '0000000000000000000000000000000000000000000000000000000000000000' : (array[index - 1]?.evidentiary_hash || 'GENESIS_BLOCK'),
             status: 'verified',
             details: `Classification: ${doc.classification || 'UNCLASSIFIED'} | MIME Type: ${doc.mime_type || 'application/pdf'}`
           }));
@@ -113,7 +113,7 @@ export default function CaseTimeline() {
         } else {
           setTimeline(MOCK_TIMELINE_DATA);
         }
-      } catch (err) {
+      } catch {
         setTimeline(MOCK_TIMELINE_DATA);
       }
     };
