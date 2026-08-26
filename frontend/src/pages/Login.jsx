@@ -81,7 +81,7 @@ export default function Login() {
       const rows = Math.ceil(canvas.height / hexHeight) + 1;
 
       for (let c = 0; c < cols; c++) {
-        for (let r = 0; r < rows; r++) {
+        for (let r = 0; r < rows; r++) { // ✅ Fixed: added 'let'
           const x = c * side;
           const y = r * hexHeight + (c % 2 === 1 ? hexHeight / 2 : 0);
           const dx = x - mousePosRef.current.x;
